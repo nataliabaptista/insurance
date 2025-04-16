@@ -1,0 +1,15 @@
+services:
+  mysql:
+    image: 'mysql:latest'
+    volumes:
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d
+    environment:
+      - 'MYSQL_ROOT_PASSWORD=verysecret'
+      - 'MYSQL_DATABASE=db_insurance'
+    ports:
+      - '3306:3306'
+    restart: 'always'
+  redis:
+    image: 'redis:latest'
+    ports:
+      - '6379'
