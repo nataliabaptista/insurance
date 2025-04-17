@@ -4,6 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 @Getter
 @Setter
@@ -17,13 +20,13 @@ public class RequestQuotationDTO {
 
     private String category;
 
-    private BigDecimal totalMonthlyPremiumAmount;
+    private Double totalMonthlyPremiumAmount;
 
-    private BigDecimal totalCoverageAmount;
+    private Double totalCoverageAmount;
 
-    private CoverageDTO coverages;
+    private LinkedHashMap<String, Double> coverages;
 
-    private AssistancesDTO assistances;
+    private List<String> assistances;
 
     private CustomersDTO customer;
 

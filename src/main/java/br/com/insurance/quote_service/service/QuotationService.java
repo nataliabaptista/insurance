@@ -5,12 +5,15 @@ import br.com.insurance.quote_service.dto.CoverageDTO;
 import br.com.insurance.quote_service.dto.RequestQuotationDTO;
 import br.com.insurance.quote_service.dto.mockDto.ResponseMockCatalogOffersDTO;
 import br.com.insurance.quote_service.dto.mockDto.ResponseMockCatalogProductsDTO;
+import br.com.insurance.quote_service.entity.Assistances;
 import br.com.insurance.quote_service.entity.Coverages;
 import br.com.insurance.quote_service.entity.Offers;
 import br.com.insurance.quote_service.entity.Products;
+import br.com.insurance.quote_service.repository.AssistancesRepository;
 import br.com.insurance.quote_service.repository.CoveragesRepository;
 import br.com.insurance.quote_service.repository.OffersRepository;
 import br.com.insurance.quote_service.repository.ProductsRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,9 @@ public class QuotationService {
 
     @Autowired
     CoveragesRepository coveragesRepository;
+
+    @Autowired
+    AssistancesRepository assistancesRepository;
 
     @Autowired
     ProductsRepository productsRepository;
@@ -41,6 +47,72 @@ public class QuotationService {
         return productsRepository.findById(productId);
     }
 
+    public Boolean validateQuotationAndSave(Offers offer, Products product, RequestQuotationDTO quotation) throws Exception {
+
+        List<String> assistancesByQuotation = quotation.getAssistances();
+
+        Optional<Assistances> offerAssistance1 = assistancesRepository.findById(offer.getAssistanceId());
+        Optional<Assistances> offerAssistance2 = Objects.nonNull(offer.getAssistanceId2()) ? assistancesRepository.findById(offer.getAssistanceId2()) : Optional.empty();
+
+        List<Assistances> allOfferAssistances = new ArrayList<>(0);
+
+        allOfferAssistances.add(offerAssistance1.isPresent() ? offerAssistance1.get() : null);
+        allOfferAssistances.add(offerAssistance2.isPresent() ? offerAssistance2.get() : null);
+
+        allOfferAssistances.removeIf(Objects::isNull);
+
+        List<Boolean> finalList = allOfferAssistances.stream().map(assist -> assist.getType().contains(assistancesByQuotation.get(0))).collect(Collectors.toList());
+
+        if (!finalList.isEmpty()){
+            //TESTAR ISSO
+            List<CoverageDTO> listRequestCoverages = buildCoverageDTOFromRequest(quotation.getCoverages());
+
+            List<Coverages> coveragesFromBase = coveragesRepository.findAll();
+
+            if (isTheCoverageOfThisOfferInTheBaseAndTheValuesAreOk(coveragesFromBase, quotation.getCoverages())){
+
+                //PEGAR O MOCK DA OFFERTA E VALIDAR SE O VALOR INFORMADO ESTÁ ENTRE O MAXIMO E O MINIMO
+
+                List<Double> coverageAmounts = listRequestCoverages.stream().map(cov -> cov.getAmount()).collect(Collectors.toList());
+
+                Optional<Double> totalCoverageAmount = coverageAmounts.stream().reduce(Double::sum);
+
+                if (totalCoverageAmount.isPresent() && totalCoverageAmount.get().compareTo(quotation.getTotalCoverageAmount())==0){
+
+                    //ENTRANDO, SALVAR CLIENTE E COTAÇÃO -criar atualização para cotação tbm
+                }
+
+            } else {
+
+                throw new Exception("Verifique as coberturas informadas.");
+
+            }
+
+
+
+        } else {
+
+            throw new Exception("Verifique as assistencias informadas.");
+        }
+
+        return true;
+    }
+
+    private List<CoverageDTO> buildCoverageDTOFromRequest(HashMap<String, Double> coverages){
+        List<CoverageDTO> listRequestCoverages = new ArrayList(0);
+
+        for (String key : coverages.keySet()) {
+            CoverageDTO cov = new CoverageDTO();
+            cov.setType(key);
+            cov.setAmount(coverages.get(key));
+            listRequestCoverages.add(cov);
+        }
+        return listRequestCoverages;
+    }
+
+    Boolean isTheAssistancePresent(Integer idAssistanceBase, Integer idsAssistanceOffer){
+        return idsAssistanceOffer==idAssistanceBase;
+    }
 
 
 
@@ -50,7 +122,7 @@ public class QuotationService {
         List<Coverages> listCoverages = coveragesRepository.findAll();
 
         return (isThatOfferActive(mockOffers) &&
-                isTheCoverageOfThisOfferInTheBaseAndTheValuesAreOk(listCoverages, mockOffers));
+                isTheCoverageOfThisOfferInTheBaseAndTheValuesAreOk(listCoverages, (LinkedHashMap<String, Double>) mockOffers.getCoverages()));
 
     }
 
@@ -58,6 +130,10 @@ public class QuotationService {
 
     public List<Coverages> findAllCoverages(){
         return coveragesRepository.findAll();
+    }
+
+    public List<Assistances> findAllAssistances(){
+        return assistancesRepository.findAll();
     }
 
     @Cacheable
@@ -76,27 +152,28 @@ public class QuotationService {
     }
 
     public Boolean isTheCoverageOfQuotationInTheBaseAndTheValuesAreOk(List<Coverages> coveragesBase, RequestQuotationDTO request) {
-        CoverageDTO coveragesFromRequest =  request.getCoverages();
+       // CoverageDTO coveragesFromRequest =  request.getCoverages();
 
         List<Coverages> confirmedCoverages = new ArrayList<>(0);
 
-        confirmedCoverages.addAll(coveragesBase.stream().filter(coverage -> coverage.getType().equals(coveragesFromRequest)).collect(Collectors.toList()));
+    //    confirmedCoverages.addAll(coveragesBase.stream().filter(coverage -> coverage.getType().equals(coveragesFromRequest)).collect(Collectors.toList()));
 
         return !confirmedCoverages.isEmpty();
     }
 
-    public Boolean isTheValuesOfRequestCovarageOk(CoverageDTO requestCoverage, List<Coverages> coveragesFromBase){
+    public Boolean isTheValuesOfRequestCovarageOk(List<CoverageDTO> coverages, List<Coverages> coveragesFromBase){
+
         Boolean s = Boolean.TRUE;
+        List<Boolean> finalCoverages = new ArrayList<>(0);
         for (Coverages coverage : coveragesFromBase){
-            s = coveragesFromBase.stream().filter(cov -> cov.getType()
-                    .equals(requestCoverage.getType())).map(cov -> cov.getAmount().compareTo(requestCoverage.getAmount())<0);
+            finalCoverages.addAll(coverages.stream().filter(cov -> cov.getType()
+                    .equals(coverage.getType())).map(covReq -> covReq.getAmount().compareTo(coverage.getAmount())<0).collect(Collectors.toList()));
         }
         return s;
     }
 
 
-    public Boolean isTheCoverageOfThisOfferInTheBaseAndTheValuesAreOk(List<Coverages> coveragesBase, ResponseMockCatalogOffersDTO coveragesOffer) {
-        LinkedHashMap<String, Double> coveragesFromOffer = (LinkedHashMap<String, Double>) coveragesOffer.getCoverages();
+    public Boolean isTheCoverageOfThisOfferInTheBaseAndTheValuesAreOk(List<Coverages> coveragesBase, LinkedHashMap<String, Double> coveragesFromOffer) {
         Set keysOfOffer = coveragesFromOffer.keySet();
 
         List<Coverages> confirmedCoverages = new ArrayList<>(0);

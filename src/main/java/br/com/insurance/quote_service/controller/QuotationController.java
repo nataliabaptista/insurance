@@ -27,8 +27,8 @@ public class QuotationController {
 
 
     @PostMapping("/sendQuotation")
-    public ResponseEntity<Quotations> validateQuotation(@RequestBody RequestQuotationDTO requestQuotationDTO) {
-        quotationService.validateOffers();
+    public ResponseEntity<Quotations> validateQuotation(@RequestBody RequestQuotationDTO requestQuotationDTO) throws Exception {
+        //quotationService.validateOffers();
 
         Optional<Offers> optionalOffer = quotationService.findOffer(requestQuotationDTO.getOfferId());
 
@@ -36,10 +36,20 @@ public class QuotationController {
 
         if (optionalOffer.isPresent() && optionalProduct.isPresent()){
 
+            Offers selectedOffer = optionalOffer.get();
+            Products selectedProduct = optionalProduct.get();
 
+            if (selectedOffer.active && selectedProduct.active){
 
+                quotationService.validateQuotationAndSave(selectedOffer, selectedProduct, requestQuotationDTO);
+
+            } else {
+                throw new Exception("Oferta ou Produto não estão ativos. Favor verificar os dados enviados.");
+            }
 
         } else {
+
+            throw new Exception("Oferta ou Produto não existem. Favor verificar os dados enviados.");
 
 
         }

@@ -1,8 +1,8 @@
 package br.com.insurance.quote_service.dto;
 
-public class AssistancesDTO {
+import java.util.List;
 
-    private Integer assistance_id;
+public class AssistancesDTO {
 
     private String type;
 
